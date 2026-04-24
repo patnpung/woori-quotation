@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우리주류상사 견적서 시스템</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Bebas+Neue&display=swap');
+  :root {
+    --navy: #0d1b2a; --navy2: #1a2d42; --gold: #c9a84c; --gold2: #e8c96a;
+    --cream: #f8f4ee; --gray: #8a9ab0; --red: #c0392b; --white: #ffffff; --border: #d0d8e4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; font-family: "Noto Sans KR", sans-serif; background: var(--cream); color: var(--navy); }
+
+  /* ── 로그인 화면 ── */
+  #loginScreen {
+    position: fixed; inset: 0; background: var(--navy);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .login-box {
+    background: var(--navy2); border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 16px; padding: 48px 40px; width: 380px; text-align: center;
+  }
+  .login-logo { font-family: "Bebas Neue", sans-serif; font-size: 32px; color: var(--gold); letter-spacing: 3px; margin-bottom: 4px; }
+  .login-sub { font-size: 11px; color: var(--gray); letter-spacing: 1px; margin-bottom: 36px; }
+  .login-label { font-size: 11px; color: var(--gray); text-align: left; margin-bottom: 6px; font-weight: 500; }
+  .login-input {
+    width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px; padding: 12px 14px; color: var(--white); font-size: 14px;
+    font-family: "Noto Sans KR", sans-serif; outline: none; margin-bottom: 16px;
+  }
+  .login-input:focus { border-color: var(--gold); }
+  .login-btn {
+    width: 100%; background: var(--gold); color: var(--navy); border: none;
+    border-radius: 8px; padding: 14px; font-size: 15px; font-weight: 700;
+    font-family: "Noto Sans KR", sans-serif; cursor: pointer; margin-top: 8px;
+    transition: background 0.15s;
+  }
+  .login-btn:hover { background: var(--gold2); }
+  .login-error { color: #ff6b6b; font-size: 12px; margin-top: 10px; min-height: 18px; }
+
+  /* ── 메인 앱 ── */
+  #appScreen { display: none; height: 100%; flex-direction: column; }
+  #appScreen.visible { display: flex; }
+
+  .header {
+    background: var(--navy); padding: 14px 24px; display: flex; align-items: center;
+    gap: 16px; border-bottom: 3px solid var(--gold); flex-shrink: 0;
+  }
+  .header-logo { font-family: "Bebas Neue", sans-serif; font-size: 24px; color: var(--gold); letter-spacing: 2px; }
+  .header-sub { font-size: 10px; color: var(--gray); letter-spacing: 1px; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+  .header-user { font-size: 12px; color: var(--gold); font-weight: 500; }
+  .header-tabs { display: flex; gap: 4px; }
+  .tab-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    color: var(--gray); font-size: 11px; font-weight: 600; padding: 6px 14px;
+    border-radius: 6px; cursor: pointer; font-family: "Noto Sans KR", sans-serif; transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .logout-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+    color: var(--gray); font-size: 11px; padding: 6px 12px; border-radius: 6px;
+    cursor: pointer; font-family: "Noto Sans KR", sans-serif;
+  }
+  .logout-btn:hover { color: var(--white); }
+
+  /* ── 콘텐츠 영역 ── */
+  .content { flex: 1; overflow: hidden; display: flex; }
+
+  /* ── 견적 탭 ── */
+  #quoteTab { display: flex; width: 100%; height: 100%; }
+  #historyTab { display: none; width: 100%; height: 100%; overflow-y: auto; padding: 24px; }
+
+  /* ── 왼쪽 패널 ── */
+  .left-panel {
+    background: var(--navy2); padding: 14px; display: flex; flex-direction: column;
+    gap: 10px; width: 400px; flex-shrink: 0; height: 100%; overflow: hidden;
+  }
+  .panel-title {
+    font-size: 10px; font-weight: 700; color: var(--gold); letter-spacing: 1px;
+    text-transform: uppercase; padding-bottom: 5px; border-bottom: 1px solid rgba(201,168,76,0.3);
+  }
+  .form-section {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 12px; flex-shrink: 0;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .form-row.full { grid-template-columns: 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 10px; color: var(--gray); font-weight: 500; }
+  .form-input {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; padding: 6px 10px; color: var(--white); font-size: 12px;
+    font-family: "Noto Sans KR", sans-serif; outline: none;
+  }
+  .form-input:focus { border-color: var(--gold); }
+  textarea.form-input { resize: vertical; min-height: 44px; }
+  .search-box { position: relative; flex-shrink: 0; }
+  .search-input {
+    width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px; padding: 8px 14px 8px 34px; color: var(--white); font-size: 13px;
+    font-family: "Noto Sans KR", sans-serif; outline: none; position: relative; z-index: 1;
+  }
+  .search-input:focus { border-color: var(--gold); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--gray); pointer-events: none; }
+  .filter-tabs { display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0; max-height: 90px; overflow-y: auto; }
+  .filter-tab {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--gray); font-size: 10px; padding: 3px 9px; border-radius: 20px;
+    cursor: pointer; font-family: "Noto Sans KR", sans-serif; transition: all 0.15s;
+  }
+  .filter-tab:hover { background: rgba(201,168,76,0.15); color: var(--gold); }
+  .filter-tab.active { background: var(--gold); color: var(--navy); border-color: var(--gold); font-weight: 700; }
+  .product-list { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; overflow-y: auto; min-height: 0; padding-right: 4px; }
+  .product-list::-webkit-scrollbar { width: 4px; }
+  .product-list::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.4); border-radius: 2px; }
+  .product-item {
+    display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.07); border-radius: 7px; padding: 7px 10px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .product-item:hover { background: rgba(201,168,76,0.12); border-color: rgba(201,168,76,0.3); }
+  .product-item.selected { background: rgba(201,168,76,0.18); border-color: var(--gold); }
+  .product-name { flex: 1; font-size: 11px; color: var(--white); font-weight: 500; line-height: 1.3; }
+  .product-cat { font-size: 10px; color: var(--gray); background: rgba(255,255,255,0.08); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+  .product-cost { font-size: 11px; color: var(--gold); font-weight: 700; white-space: nowrap; text-align: right; }
+  .price-group { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
+  .price-row { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .price-label { font-size: 9px; color: var(--gray); background: rgba(255,255,255,0.08); padding: 1px 4px; border-radius: 3px; }
+  .price-label.ilban { color: #5dade2; }
+  .price-label.yuhung { color: #e67e22; }
+  .price-val { font-size: 11px; font-weight: 700; }
+  .price-val.main { color: var(--gray); }
+  .price-val.ilban { color: #5dade2; }
+  .price-val.yuhung { color: #e67e22; }
+  .add-btn {
+    background: var(--gold); border: none; color: var(--navy); width: 22px; height: 22px;
+    border-radius: 50%; font-size: 16px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .product-count { font-size: 11px; color: var(--gold); text-align: center; padding: 4px 0; flex-shrink: 0; }
+  .bulk-bar { display: flex; align-items: center; gap: 8px; padding: 5px 2px; flex-shrink: 0; }
+  .bulk-check-all { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px; color: var(--gray); user-select: none; }
+  .bulk-check-all input[type=checkbox] { accent-color: var(--gold); width: 14px; height: 14px; cursor: pointer; }
+  .bulk-add-btn {
+    margin-left: auto; background: var(--gold); color: var(--navy); border: none;
+    border-radius: 6px; padding: 4px 12px; font-size: 11px; font-weight: 700;
+    font-family: "Noto Sans KR", sans-serif; cursor: pointer; transition: background 0.15s;
+    display: none;
+  }
+  .bulk-add-btn.visible { display: block; }
+  .bulk-add-btn:hover { background: var(--gold2); }
+  .item-checkbox { accent-color: var(--gold); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+  .product-item.checked { background: rgba(201,168,76,0.28); border-color: var(--gold2); }
+
+  /* ── 오른쪽 패널 ── */
+  .right-panel { padding: 20px; gap: 16px; height: 100%; overflow-y: auto; overflow-x: hidden; box-sizing: border-box; flex: 1; }
+  .right-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; flex-shrink: 0; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+    border-radius: 8px; font-size: 12px; font-weight: 700; font-family: "Noto Sans KR", sans-serif;
+    cursor: pointer; border: none; transition: all 0.15s;
+  }
+  .btn-gold { background: var(--gold); color: var(--navy); }
+  .btn-gold:hover { background: var(--gold2); }
+  .btn-navy { background: var(--navy); color: var(--white); }
+  .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); }
+  .btn-outline:hover { background: var(--navy); color: var(--white); }
+  .btn-green { background: #27ae60; color: white; }
+  .btn-green:hover { background: #219a52; }
+
+  /* 편집 테이블 */
+  .selected-items { background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; }
+  .selected-header {
+    background: var(--navy); color: var(--white); padding: 10px 16px; font-size: 12px;
+    font-weight: 700; display: flex; align-items: center; gap: 10px; border-radius: 12px 12px 0 0;
+  }
+  .selected-count { background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .price-apply-bar {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+    background: #f0f4f8; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .price-apply-label { font-size: 11px; color: #555; font-weight: 600; white-space: nowrap; }
+  .price-apply-btn {
+    background: var(--navy); color: var(--white); border: none; border-radius: 6px;
+    padding: 5px 12px; font-size: 11px; font-weight: 700; font-family: "Noto Sans KR", sans-serif;
+    cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  }
+  .price-apply-btn:hover { background: #0a2238; }
+  .price-apply-btn.jeongga { background: #27ae60; }
+  .price-apply-btn.jeongga:hover { background: #219a52; }
+  .margin-input-wrap { display: flex; align-items: center; gap: 4px; }
+  .margin-input {
+    width: 60px; border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-size: 12px; font-family: "Noto Sans KR", sans-serif;
+    text-align: center; outline: none;
+  }
+  .margin-input:focus { border-color: var(--navy); }
+  .divider-v { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .row-margin-btn {
+    background: rgba(13,27,42,0.12); border: 1px solid #ccd; color: #445; 
+    border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 700;
+    font-family: "Noto Sans KR", sans-serif; cursor: pointer; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .row-margin-btn:hover { background: var(--navy); color: var(--white); border-color: var(--navy); }
+  .price-cell { display: flex; align-items: center; gap: 4px; }
+  .row-pct-input {
+    width: 44px; border: 1px solid #ccd; border-radius: 4px;
+    padding: 2px 4px; font-size: 11px; text-align: center; outline: none;
+    font-family: "Noto Sans KR", sans-serif;
+  }
+  .row-pct-input:focus { border-color: var(--navy); }
+  .row-pct-apply {
+    background: var(--navy); color: var(--white); border: none;
+    border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700;
+    font-family: "Noto Sans KR", sans-serif; cursor: pointer; white-space: nowrap;
+  }
+  .row-pct-apply:hover { background: #0a2238; }
+  .pct-sep { font-size: 10px; color: #aaa; }
+  #editTable { max-height: 160px; overflow-y: auto; border-radius: 0 0 12px 12px; }
+  #editTable::-webkit-scrollbar { width: 4px; }
+  #editTable::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+  .edit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .edit-table th { background: #f5f7fa; padding: 8px 12px; text-align: center; font-weight: 600; font-size: 11px; color: var(--gray); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+  .edit-table th:nth-child(1) { text-align: left; }
+  .edit-table td { padding: 8px 10px; border-bottom: 1px solid #f5f5f5; text-align: center; vertical-align: middle; }
+  .edit-table td:nth-child(1) { text-align: left; font-weight: 500; font-size: 12px; }
+  .qty-input { width: 55px; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; text-align: center; font-size: 12px; font-family: "Noto Sans KR", sans-serif; color: var(--navy); font-weight: 600; }
+  .price-input { width: 90px; border: 1px solid #d4edda; border-radius: 5px; padding: 5px 8px; text-align: right; font-size: 12px; font-family: "Noto Sans KR", sans-serif; color: #1a472a; font-weight: 700; background: #f8fdf9; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 16px; }
+  .del-btn:hover { color: var(--red); }
+  .empty-state { text-align: center; padding: 30px; color: var(--gray); }
+
+  /* 견적서 미리보기 */
+  .quote-preview { background: var(--white); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 40px; }
+  .quote-doc { padding: 36px; font-family: "Noto Sans KR", sans-serif; }
+  .quote-title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+  .quote-main-title { font-size: 26px; font-weight: 900; color: var(--navy); }
+  .quote-company-info { text-align: right; font-size: 11px; color: #555; line-height: 1.7; }
+  .quote-company-name { font-size: 14px; font-weight: 700; color: var(--navy); }
+  .quote-meta { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .quote-meta-label { font-size: 10px; color: var(--gray); font-weight: 500; margin-bottom: 3px; }
+  .quote-meta-value { font-size: 13px; font-weight: 600; color: var(--navy); }
+  .quote-recipient { border-bottom: 3px solid var(--navy); padding-bottom: 8px; margin-bottom: 16px; display: flex; align-items: baseline; gap: 10px; }
+  .quote-recipient-name { font-size: 20px; font-weight: 700; color: var(--navy); }
+  .quote-recipient-sub { font-size: 13px; color: var(--gray); }
+  .quote-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 18px; }
+  .quote-table th { background: var(--navy); color: var(--white); padding: 10px 12px; text-align: center; font-weight: 600; font-size: 11px; }
+  .quote-table th:first-child { text-align: left; }
+  .quote-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; text-align: center; color: #333; }
+  .quote-table td:first-child { text-align: left; font-weight: 500; }
+  .quote-total { border-top: 2px solid var(--navy); padding-top: 14px; display: flex; justify-content: flex-end; gap: 30px; margin-bottom: 18px; }
+  .total-row { display: flex; align-items: center; gap: 12px; }
+  .total-label { font-size: 12px; color: var(--gray); font-weight: 500; }
+  .total-value { font-size: 15px; font-weight: 700; color: var(--navy); }
+  .total-grand .total-label { font-size: 13px; color: var(--navy); font-weight: 700; }
+  .total-grand .total-value { font-size: 20px; color: var(--gold); }
+  .quote-note { background: #fffbf0; border: 1px solid #f0e0a0; border-left: 4px solid var(--gold); border-radius: 6px; padding: 12px 16px; font-size: 12px; color: #555; line-height: 1.7; margin-bottom: 18px; }
+  .quote-footer { text-align: center; border-top: 1px solid var(--border); padding-top: 14px; font-size: 11px; color: var(--gray); }
+
+  /* ── 기록 탭 ── */
+  .history-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .history-title { font-size: 18px; font-weight: 700; color: var(--navy); }
+  .history-table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .history-table th { background: var(--navy); color: var(--white); padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; }
+  .history-table td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #333; }
+  .history-table tr:hover td { background: #f9fafb; }
+  .history-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-gold { background: #fef3cd; color: #856404; }
+  .loading { text-align: center; padding: 40px; color: var(--gray); font-size: 14px; }
+
+  @media print {
+    #loginScreen, .header, .left-panel, .right-header, .selected-items, .tab-btn, .logout-btn, .btn-group { display: none !important; }
+    .content { display: block; }
+    .right-panel { padding: 0; max-height: none; overflow: visible; }
+    .quote-preview { border: none; box-shadow: none; }
+    body, html { overflow: visible; height: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">WOORI LIQUOR</div>
+    <div class="login-sub">우리주류상사 · 견적서 시스템</div>
+    <div class="form-group" style="text-align:left">
+      <div class="login-label">이메일</div>
+      <input type="email" class="login-input" id="loginEmail" placeholder="이메일 입력" />
+    </div>
+    <div class="form-group" style="text-align:left">
+      <div class="login-label">비밀번호</div>
+      <input type="password" class="login-input" id="loginPw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <button class="login-btn" onclick="doLogin()">로그인</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div id="appScreen">
+  <div class="header">
+    <div>
+      <div class="header-logo">WOORI LIQUOR</div>
+      <div class="header-sub">우리주류상사 · 견적서 자동생성 시스템</div>
+    </div>
+    <div class="header-right">
+      <div class="header-tabs">
+        <button class="tab-btn active" onclick="switchTab('quote', this)">📄 견적서 작성</button>
+        <button class="tab-btn" onclick="switchTab('history', this)">📋 견적 기록</button>
+        <button class="tab-btn" id="adminTabBtn" style="display:none" onclick="switchTab('admin', this)">⚙️ 관리자</button>
+      </div>
+      <span class="header-user" id="headerUser"></span>
+      <button class="logout-btn" onclick="doLogout()">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- 견적서 작성 탭 -->
+    <div id="quoteTab">
+      <!-- 왼쪽 패널 -->
+      <div class="left-panel">
+        <div class="panel-title" onclick="toggleForm()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <span>📋 견적 기본정보</span>
+          <span id="formToggleIcon" style="font-size:11px;color:var(--gold);">▲ 접기</span>
+        </div>
+        <div class="form-section" id="formSection">
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">수신 업체명</div><input type="text" class="form-input" id="client" placeholder="예) OO 귀하" /></div>
+            <div class="form-group"><div class="form-label">견적 날짜</div><input type="date" class="form-input" id="quoteDate" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">유효기간</div><input type="text" class="form-input" id="validity" value="30일" /></div>
+            <div class="form-group"><div class="form-label">견적번호</div><input type="text" class="form-input" id="quoteNum" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group full" style="flex:1"><div class="form-label">발신 회사명 <span style="font-weight:400;color:#aaa">(선택 — 입력 시 견적서에 표시)</span></div><input type="text" class="form-input" id="companyName" placeholder="예) 우리주류상사" /></div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group"><div class="form-label">특이사항 / 결제조건</div><textarea class="form-input" id="noteText" placeholder="납품 조건, 결제 방법 등"></textarea></div>
+          </div>
+        </div>
+        <div class="panel-title">🔍 품목 검색 · 선택</div>
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="searchInput" placeholder="품목명 검색..." autocomplete="off" />
+        </div>
+        <div class="filter-tabs" id="filterTabs">
+          <div class="filter-tab active" onclick="setCategory('all', this)">전체</div>
+        </div>
+        <div class="bulk-bar" id="bulkBar">
+          <label class="bulk-check-all">
+            <input type="checkbox" id="checkAll" onchange="toggleAllCheck(this.checked)" />
+            전체선택
+          </label>
+          <button class="bulk-add-btn" id="bulkAddBtn" onclick="addCheckedToQuote()">선택 추가 (0개)</button>
+        </div>
+        <div class="product-list" id="productList"></div>
+        <div class="product-count" id="productCount"></div>
+      </div>
+
+      <!-- 오른쪽 패널 -->
+      <div class="right-panel">
+        <div class="right-header">
+          <div style="font-size:14px;font-weight:700;color:var(--navy);">📄 견적서 미리보기</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="clearAll()">🗑️ 초기화</button>
+            <button class="btn btn-navy" onclick="window.print()">🖨️ 인쇄</button>
+            <button class="btn" style="background:#8e44ad;color:white;" onclick="saveAsImage()">🖼️ 이미지 저장</button>
+            <button class="btn btn-green" onclick="saveQuote()">💾 견적 저장</button>
+            <button class="btn btn-gold" onclick="downloadPDF()">⬇️ PDF</button>
+          </div>
+        </div>
+        <div class="selected-items">
+          <div class="selected-header">
+            🛒 선택된 품목 편집
+            <span class="selected-count" id="itemCount">0개</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--gray);font-weight:400;">수량·단가 직접 수정 가능</span>
+          </div>
+          <div class="price-apply-bar">
+            <span class="price-apply-label">단가 일괄 적용:</span>
+            <button class="price-apply-btn jeongga" onclick="applyJeongga()">정가 적용</button>
+            <div class="divider-v"></div>
+            <div class="margin-input-wrap">
+              <span class="price-apply-label">매입가 +</span>
+              <input type="number" class="margin-input" id="marginInput" placeholder="0" min="0" max="100" />
+              <span class="price-apply-label">%</span>
+              <button class="price-apply-btn" onclick="applyMargin()">적용</button>
+            </div>
+          </div>
+          <div id="editTable"><div class="empty-state">왼쪽에서 품목을 선택해 주세요</div></div>
+        </div>
+        <div class="quote-preview"><div class="quote-doc" id="quoteDoc"></div></div>
+      </div>
+    </div>
+
+    <!-- 견적 기록 탭 -->
+    <div id="historyTab">
+      <div class="history-header">
+        <div class="history-title">📋 견적 기록</div>
+        <button class="btn btn-navy" onclick="loadHistory()">🔄 새로고침</button>
+      </div>
+      <div id="historyContent"><div class="loading">로딩 중...</div></div>
+    </div>
+  </div>
+
+  <!-- 관리자 탭 -->
+  <div id="adminTab" style="display:none; padding:32px; max-width:600px; margin:0 auto;">
+    <div style="background:#fff; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+      <h2 style="color:#1a472a; margin:0 0 8px 0; font-size:18px;">&#9881;&#65039; 품목 데이터 관리</h2>
+      <p style="color:#666; font-size:13px; margin:0 0 24px 0;">ERP에서 받은 상품현황.xlsx 파일을 업로드하면 전체 품목이 자동으로 교체됩니다.</p>
+      <div style="border:2px dashed #ccc; border-radius:8px; padding:24px; text-align:center; margin-bottom:20px; background:#f9f9f9;">
+        <div style="font-size:36px; margin-bottom:8px;">&#128194;</div>
+        <div style="color:#555; font-size:14px; margin-bottom:16px;">상품현황.xlsx 파일을 선택하세요</div>
+        <input type="file" id="adminFile" accept=".xlsx" style="display:none" onchange="adminFileSelected(this)"/>
+        <button onclick="document.getElementById('adminFile').click()" style="background:#1a472a; color:#fff; border:none; padding:10px 24px; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600;">파일 선택</button>
+        <div id="adminFileName" style="margin-top:10px; color:#888; font-size:12px;"></div>
+      </div>
+      <button id="adminUploadBtn" onclick="adminUpload()" disabled style="width:100%; background:#2e7d32; color:#fff; border:none; padding:14px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:700; opacity:0.5;">&#128260; 품목 데이터 업데이트</button>
+      <div id="adminStatus" style="margin-top:16px; padding:12px; border-radius:6px; font-size:13px; display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://zwomjvcoqjtlrrsstwpd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_GZSOCTqR_iNXgD5G2QXkwQ_o45Yuxv_";
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let PRODUCTS = [];
+let selectedItems = [];
+let currentCategory = 'all';
+let currentUser = null;
+let searchTimer = null;
+let checkedSet = new Set();
+
+// ── 로그인 ──
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '로그인 중...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+  if (error) { errEl.textContent = '❌ 이메일 또는 비밀번호가 틀렸습니다.'; return; }
+  currentUser = data.user;
+  showApp();
+}
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  document.getElementById('appScreen').classList.remove('visible');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginPw').value = '';
+  document.getElementById('loginError').textContent = '';
+}
+function showApp() {
+  const adminBtn = document.getElementById('adminTabBtn');
+  if (adminBtn) adminBtn.style.display = currentUser && currentUser.email === 'shchey88@gmail.com' ? '' : 'none';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').classList.add('visible');
+  document.getElementById('headerUser').textContent = '👤 ' + currentUser.email;
+  initApp();
+}
+
+// ── 세션 복원 ──
+sb.auth.onAuthStateChange((event, session) => {
+  if (session) { currentUser = session.user; showApp(); }
+});
+
+// ── 앱 초기화 ──
+async function initApp() {
+  const today = new Date();
+  document.getElementById('quoteDate').value = today.toISOString().split('T')[0];
+  const num = 'WL-' + today.getFullYear() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0') + '-001';
+  document.getElementById('quoteNum').value = num;
+  const searchEl = document.getElementById('searchInput');
+  searchEl.addEventListener('input', filterProducts);
+  searchEl.addEventListener('keyup', filterProducts);
+  searchEl.addEventListener('compositionend', filterProducts);
+  document.querySelectorAll('.form-input,#quoteDate,#validity,#quoteNum,#companyName').forEach(el => el.addEventListener('input', updatePreview));
+  await loadProducts();
+  updatePreview();
+}
+
+async function loadProducts() {
+  const listEl = document.getElementById('productList');
+  if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#888;">&#9203; 품목 로딩 중...</div>';
+  const { data, error } = await sb.from('products').select('*').order('id');
+  if (error || !data) {
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#e74c3c;">품목 로드 실패. 새로고침 해주세요.</div>';
+    return;
+  }
+  PRODUCTS = data.map((p,i) => ({...p, _idx:i}));
+  const tabsEl = document.getElementById('filterTabs');
+  // 기존 동적 탭 제거 (전체 탭만 유지)
+  Array.from(tabsEl.children).forEach(el => { if (!el.classList.contains('active') && el.textContent !== '전체') el.remove(); });
+  tabsEl.querySelectorAll('.filter-tab:not(.active)').forEach(el => el.remove());
+  const cats = [...new Set(PRODUCTS.map(p=>p.category).filter(Boolean))].sort();
+  cats.forEach(cat => {
+    const tab = document.createElement('div');
+    tab.className = 'filter-tab';
+    tab.textContent = cat;
+    tab.onclick = () => setCategory(cat, tab);
+    tabsEl.appendChild(tab);
+  });
+  renderProductList();
+}
+
+// ── 탭 전환 ──
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('quoteTab').style.display = tab==='quote' ? 'flex' : 'none';
+  document.getElementById('historyTab').style.display = tab==='history' ? 'block' : 'none';
+  document.getElementById('adminTab').style.display = tab==='admin' ? 'block' : 'none';
+  if (tab==='history') loadHistory();
+}
+
+// ── 품목 검색 ──
+function setCategory(cat, el) {
+  currentCategory = cat;
+  document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  filterProducts();
+}
+function filterProducts() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderProductList, 50);
+}
+function renderProductList() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let filtered = PRODUCTS.filter(p => {
+    const matchCat = currentCategory==='all' || p.category===currentCategory;
+    const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+  if (q) filtered.sort((a,b) => {
+    const as = a.name.toLowerCase().startsWith(q), bs = b.name.toLowerCase().startsWith(q);
+    return as&&!bs ? -1 : !as&&bs ? 1 : 0;
+  });
+  const list = document.getElementById('productList');
+  const countEl = document.getElementById('productCount');
+  const limit = q ? filtered.length : 200;
+  const display = filtered.slice(0, limit);
+  countEl.textContent = q ? `🔍 "${document.getElementById('searchInput').value}" 검색결과: ${filtered.length}개` : `${filtered.length}개 품목`;
+  // 전체선택 체크박스 상태 업데이트
+  const checkAllEl = document.getElementById('checkAll');
+  const displayIdxs = display.map(p=>p._idx);
+  const allChecked = displayIdxs.length > 0 && displayIdxs.every(idx => checkedSet.has(idx));
+  if (checkAllEl) checkAllEl.checked = allChecked;
+  // 선택 추가 버튼 업데이트
+  const bulkBtn = document.getElementById('bulkAddBtn');
+  if (bulkBtn) {
+    if (checkedSet.size > 0) { bulkBtn.classList.add('visible'); bulkBtn.textContent = '선택 추가 (' + checkedSet.size + '개)'; }
+    else { bulkBtn.classList.remove('visible'); }
+  }
+  list.innerHTML = display.map(p => {
+    const isSelected = selectedItems.some(s=>s.idx===p._idx);
+    const isChecked = checkedSet.has(p._idx);
+    return `<div class="product-item ${isSelected?'selected':''} ${isChecked?'checked':''}" id="pi_${p._idx}">
+      <input type="checkbox" class="item-checkbox" ${isChecked?'checked':''} onclick="event.stopPropagation();toggleCheck(${p._idx},this.checked)" />
+      <div class="product-name">${p.name}<br><span style="font-size:10px;color:var(--gray)">${p.volume}ml · ${p.bottles}본</span></div>
+      <span class="product-cat">${p.category}</span>
+      <div class="price-group">
+        <div class="price-row"><span class="price-label">매입</span><span class="price-val main">${p.unit_cost.toLocaleString()}원</span></div>
+        ${p.ilban_cost > 0 ? `<div class="price-row"><span class="price-label ilban">일반</span><span class="price-val ilban">${p.ilban_cost.toLocaleString()}원</span></div>` : ''}
+        ${p.yuhung_cost > 0 ? `<div class="price-row"><span class="price-label yuhung">정가</span><span class="price-val yuhung">${p.yuhung_cost.toLocaleString()}원</span></div>` : ''}
+        ${p.delivery_fee > 0 ? `<div class="price-row"><span class="price-label" style="color:#e67e22">택배</span><span class="price-val" style="color:#e67e22">${p.delivery_fee.toLocaleString()}원</span></div>` : ''}
+      </div>
+      <button class="add-btn" onclick="toggleItem(${p._idx})">${isSelected?'✓':'+'}</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleCheck(idx, checked) {
+  if (checked) checkedSet.add(idx);
+  else checkedSet.delete(idx);
+  const el = document.getElementById('pi_' + idx);
+  if (el) { if (checked) el.classList.add('checked'); else el.classList.remove('checked'); }
+  const bulkBtn = document.getElementById('bulkAddBtn');
+  if (bulkBtn) {
+    if (checkedSet.size > 0) { bulkBtn.classList.add('visible'); bulkBtn.textContent = '선택 추가 (' + checkedSet.size + '개)'; }
+    else { bulkBtn.classList.remove('visible'); }
+  }
+  // 전체선택 체크박스 상태 동기화
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let filtered = PRODUCTS.filter(p => {
+    const matchCat = currentCategory==='all' || p.category===currentCategory;
+    const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+  const limit = q ? filtered.length : 200;
+  const displayIdxs = filtered.slice(0, limit).map(p=>p._idx);
+  const checkAllEl = document.getElementById('checkAll');
+  if (checkAllEl) checkAllEl.checked = displayIdxs.length > 0 && displayIdxs.every(i => checkedSet.has(i));
+}
+
+function toggleAllCheck(checked) {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let filtered = PRODUCTS.filter(p => {
+    const matchCat = currentCategory==='all' || p.category===currentCategory;
+    const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+  const limit = q ? filtered.length : 200;
+  filtered.slice(0, limit).forEach(p => { if (checked) checkedSet.add(p._idx); else checkedSet.delete(p._idx); });
+  renderProductList();
+}
+
+function addCheckedToQuote() {
+  let added = 0;
+  checkedSet.forEach(idx => {
+    const p = PRODUCTS.find(p=>p._idx===idx);
+    if (p && !selectedItems.some(s=>s.idx===idx)) {
+      selectedItems.push({idx, name:p.name, volume:p.volume, bottles:p.bottles, category:p.category, unitCost:p.unit_cost, ilbanCost:p.ilban_cost, yuhungCost:p.yuhung_cost, price:p.unit_cost, qty:1, deliveryFee:p.delivery_fee||0});
+      added++;
+    }
+  });
+  checkedSet.clear();
+  const checkAllEl = document.getElementById('checkAll');
+  if (checkAllEl) checkAllEl.checked = false;
+  renderProductList(); renderEditTable(); updatePreview();
+  if (added > 0) alert(added + '개 품목이 견적서에 추가되었습니다.');
+}
+
+function applyJeongga() {
+  if (!selectedItems.length) return;
+  selectedItems.forEach(item => {
+    const p = PRODUCTS.find(p => p._idx === item.idx);
+    if (!p) return;
+    const jeongga = p.yuhung_cost > 0 ? p.yuhung_cost : (p.ilban_cost > 0 ? p.ilban_cost : 0);
+    if (jeongga > 0) {
+      item.price = jeongga;
+      // 매입가 대비 마진% 역산하여 표시
+      if (p.unit_cost > 0) {
+        item.marginPct = Math.round((jeongga / p.unit_cost - 1) * 100 * 10) / 10;
+      }
+    }
+  });
+  renderEditTable(); updatePreview();
+}
+function applyMarginOne(i) {
+  const rowInput = document.getElementById('rowpct_' + i);
+  const rowVal = rowInput ? parseFloat(rowInput.value) : NaN;
+  const globalVal = parseFloat(document.getElementById('marginInput').value);
+  const pct = !isNaN(rowVal) ? rowVal : globalVal;
+  if (isNaN(pct) || pct < 0) { alert('마진율(%)을 입력해주세요'); return; }
+  const p = PRODUCTS.find(p => p._idx === selectedItems[i].idx);
+  if (p) selectedItems[i].price = Math.round(p.unit_cost * (1 + pct / 100));
+  selectedItems[i].marginPct = pct;
+  renderEditTable(); updatePreview();
+}
+function applyMargin() {
+  if (!selectedItems.length) return;
+  const pct = parseFloat(document.getElementById('marginInput').value);
+  if (isNaN(pct) || pct < 0) { alert('마진율을 입력해주세요 (예: 10)'); return; }
+  selectedItems.forEach(item => {
+    const p = PRODUCTS.find(p => p._idx === item.idx);
+    if (p) item.price = Math.round(p.unit_cost * (1 + pct / 100));
+    item.marginPct = pct;
+  });
+  renderEditTable(); updatePreview();
+}
+function toggleItem(idx) {
+  const p = PRODUCTS.find(p=>p._idx===idx);
+  const existIdx = selectedItems.findIndex(s=>s.idx===idx);
+  if (existIdx>=0) { selectedItems.splice(existIdx,1); }
+  else { selectedItems.push({idx,name:p.name,volume:p.volume,bottles:p.bottles,category:p.category,unitCost:p.unit_cost,ilbanCost:p.ilban_cost,yuhungCost:p.yuhung_cost,price:p.unit_cost,qty:1,deliveryFee:p.delivery_fee||0}); }
+  renderProductList(); renderEditTable(); updatePreview();
+}
+function renderEditTable() {
+  const el = document.getElementById('editTable');
+  document.getElementById('itemCount').textContent = selectedItems.length + '개';
+  if (!selectedItems.length) { el.innerHTML = '<div class="empty-state">왼쪽에서 품목을 선택해 주세요</div>'; return; }
+  el.innerHTML = `<table class="edit-table"><thead><tr>
+    <th style="width:28%">상품명</th><th>용량</th><th>본수</th><th>수량(상자)</th><th>단가(본당)</th><th>마진%</th><th>금액</th><th></th>
+  </tr></thead><tbody>${selectedItems.map((item,i) => `<tr>
+    <td>${item.name}</td><td>${item.volume}ml</td><td>${item.bottles}본</td>
+    <td><input type="number" class="qty-input" value="${item.qty}" min="1" onchange="updateQty(${i},this.value)" /></td>
+    <td><input type="number" class="price-input" value="${item.price}" min="0" onchange="updatePrice(${i},this.value)" /></td>
+    <td><div class="price-cell"><input type="number" class="row-pct-input" id="rowpct_${i}" placeholder="%" min="0" max="999" value="${item.marginPct !== undefined && item.marginPct !== null ? item.marginPct : ''}" /><span class="pct-sep">%</span><button class="row-pct-apply" onclick="applyMarginOne(${i})">적용</button></div></td>
+    <td style="font-weight:700;color:#1a472a">${(Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty).toLocaleString()}${item.deliveryFee>0?'<span style="font-size:10px;color:#e67e22;margin-left:3px">(택배포함)</span>':''}</td>
+    <td><button class="del-btn" onclick="removeItem(${i})">✕</button></td>
+  </tr>`).join('')}</tbody></table>`;
+}
+function updateQty(i,v){selectedItems[i].qty=parseInt(v)||1;renderEditTable();updatePreview();}
+function updatePrice(i,v){selectedItems[i].price=parseInt(v)||0;const unitCost=selectedItems[i].unitCost;if(unitCost>0){selectedItems[i].marginPct=Math.round((selectedItems[i].price/unitCost-1)*100*10)/10;}renderEditTable();updatePreview();}
+function removeItem(i){const idx=selectedItems[i].idx;selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
+
+function updatePreview() {
+  const client = document.getElementById('client').value||'(업체명)';
+  const companyName = document.getElementById('companyName') ? document.getElementById('companyName').value.trim() : '';
+  const quoteDate = document.getElementById('quoteDate').value||'';
+  const validity = document.getElementById('validity').value||'30일';
+  const quoteNum = document.getElementById('quoteNum').value||'';
+  const noteText = document.getElementById('noteText').value||'';
+  const dateStr = quoteDate ? new Date(quoteDate).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
+  const subtotal = selectedItems.reduce((s,i)=>s+i.price*i.qty*i.bottles,0);
+  const vat = Math.round(subtotal*0.1);
+  const total = subtotal+vat;
+  const rows = !selectedItems.length
+    ? '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">선택된 품목이 없습니다</td></tr>'
+    : selectedItems.map((item,i)=>`<tr>
+        <td>${i+1}. ${item.name} (${item.volume}ml)</td>
+        <td>${item.qty}상자</td><td>${item.bottles}본</td>
+        <td>${item.price.toLocaleString()}</td>
+        <td style="font-weight:700;color:#1a472a">${(Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty).toLocaleString()}</td>
+      </tr>`).join('');
+  document.getElementById('quoteDoc').innerHTML = `
+    <div class="quote-title-row">
+      <div><div class="quote-main-title">견 적 서</div><div style="font-size:11px;color:var(--gray);margin-top:4px">QUOTATION</div></div>
+      ${companyName ? `<div class="quote-company-info"><div class="quote-company-name">${companyName}</div></div>` : ''}
+    </div>
+    <div class="quote-meta">
+      <div><div class="quote-meta-label">견적번호</div><div class="quote-meta-value">${quoteNum}</div></div>
+      <div><div class="quote-meta-label">견적일자</div><div class="quote-meta-value">${dateStr}</div></div>
+      <div><div class="quote-meta-label">유효기간</div><div class="quote-meta-value">${validity}</div></div>
+    </div>
+    <div class="quote-recipient"><div class="quote-recipient-name">${client}</div><div class="quote-recipient-sub">아래와 같이 견적을 제출합니다.</div></div>
+    <div style="font-size:11px;color:#555;text-align:right;margin-bottom:5px;">※ 부가세(VAT) 포함 &nbsp;|&nbsp; 용기보증금 별도</div>
+    <table class="quote-table"><thead><tr>
+      <th style="text-align:left;width:40%">상품명</th><th>수량(상자)</th><th>본수</th><th>단가(본당)</th><th>금액</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+
+    ${noteText?`<div class="quote-note"><strong>📌 특이사항</strong><br>${noteText.replace(/\n/g,'<br>')}</div>`:''}
+    <div class="quote-footer">본 견적서는 발행일로부터 ${validity} 동안 유효합니다.</div>`;
+}
+
+// ── 이미지 저장 ──
+async function saveAsImage() {
+  const el = document.getElementById('quoteDoc');
+  if (!el) return;
+  const btn = event.target;
+  btn.textContent = '⏳ 저장 중...';
+  btn.disabled = true;
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+    const link = document.createElement('a');
+    const client = document.getElementById('client').value || '견적서';
+    const date = document.getElementById('quoteDate').value || new Date().toISOString().split('T')[0];
+    link.download = client + '_' + date + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch(e) {
+    alert('이미지 저장 중 오류가 발생했습니다.');
+  } finally {
+    btn.textContent = '🖼️ 이미지 저장';
+    btn.disabled = false;
+  }
+}
+
+// ── 견적 저장 ──
+async function saveQuote() {
+  const client = document.getElementById('client').value.trim();
+  if (!client) { alert('업체명을 입력해 주세요.'); return; }
+  if (!selectedItems.length) { alert('품목을 선택해 주세요.'); return; }
+  const total = selectedItems.reduce((s,i)=>s+i.price*i.qty*i.bottles,0);
+  const { error } = await sb.from('quotes').insert({
+    employee_name: currentUser.email,
+    client_name: client,
+    quote_number: document.getElementById('quoteNum').value,
+    total_amount: total,
+    items: selectedItems,
+    note: document.getElementById('noteText').value
+  });
+  if (error) { alert('저장 실패: ' + error.message); return; }
+  alert('✅ 견적이 저장되었습니다!');
+}
+
+
+// ── 관리자: 파일 선택 ──
+function adminFileSelected(input) {
+  const nameEl = document.getElementById('adminFileName');
+  const btn = document.getElementById('adminUploadBtn');
+  if (input.files.length > 0) {
+    nameEl.textContent = '선택된 파일: ' + input.files[0].name;
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// ── 관리자: 품목 업로드 ──
+async function adminUpload() {
+  const file = document.getElementById('adminFile').files[0];
+  if (!file) { alert('파일을 선택해주세요'); return; }
+  const statusEl = document.getElementById('adminStatus');
+  const btn = document.getElementById('adminUploadBtn');
+  statusEl.style.display = 'block';
+  statusEl.style.background = '#fff8e1';
+  statusEl.style.color = '#555';
+  btn.disabled = true; btn.style.opacity = '0.5';
+  const CATEGORY_MAP = {'탁주':'탁주/막걸리','약주':'약주/청주','청주':'약주/청주','증류식소주':'소주','희석식소주':'소주','소주':'소주','맥주':'맥주','과실주':'과실주','위스키':'위스키','브랜디':'브랜디','일반증류주':'일반증류주','리큐르':'리큐르','기타주류':'기타주류','영':'기타주류'};
+  function parseDeliveryFee(bigo) {
+    if (!bigo || !String(bigo).includes('택배')) return 0;
+    const m = String(bigo).match(/([\d,]+)원/);
+    return m ? parseInt(m[1].replace(/,/g,'')) : 0;
+  }
+  try {
+    statusEl.textContent = '⏳ 파일 읽는 중...';
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    const products = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r[54] || String(r[54]).trim() !== 'C') continue;
+      const name = String(r[1]||'').trim();
+      const bottles = parseInt(r[5])||0;
+      if (!name || !bottles) continue;
+      products.push({
+        name, volume: parseInt(r[2])||0, bottles,
+        category: CATEGORY_MAP[String(r[9]||'').trim()]||'기타주류',
+        unit_cost: parseInt(r[25])||0,
+        ilban_cost: parseInt(r[33])||0,
+        yuhung_cost: parseInt(r[41])||0,
+        delivery_fee: parseDeliveryFee(r[64])
+      });
+    }
+    statusEl.textContent = `⏳ ${products.length}개 품목 확인됨. 기존 데이터 삭제 중...`;
+    const {error: delErr} = await sb.from('products').delete().gt('id', 0);
+    if (delErr) throw new Error('삭제 실패: ' + delErr.message);
+    statusEl.textContent = '⏳ 새 데이터 입력 중...';
+    const chunkSize = 100;
+    let inserted = 0;
+    for (let i = 0; i < products.length; i += chunkSize) {
+      const chunk = products.slice(i, i + chunkSize);
+      const {error: insErr} = await sb.from('products').insert(chunk);
+      if (insErr) throw new Error('입력 실패: ' + insErr.message);
+      inserted += chunk.length;
+      statusEl.textContent = `⏳ 입력 중... ${inserted}/${products.length}개`;
+    }
+    statusEl.style.background = '#e8f5e9';
+    statusEl.style.color = '#2e7d32';
+    statusEl.textContent = `✅ 완료! ${inserted}개 품목 업데이트됨. 품목 목록 새로고침 중...`;
+    btn.disabled = false; btn.style.opacity = '1';
+    await loadProducts();
+    statusEl.textContent = `✅ 완료! ${inserted}개 품목 업데이트 및 반영됨`;
+  } catch(e) {
+    statusEl.style.background = '#ffebee';
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = '❌ ' + e.message;
+    btn.disabled = false; btn.style.opacity = '1';
+  }
+}
+
+// ── 견적 기록 조회 ──
+async function loadHistory() {
+  document.getElementById('historyContent').innerHTML = '<div class="loading">⏳ 불러오는 중...</div>';
+  const { data, error } = await sb.from('quotes').select('*').order('created_at', {ascending:false});
+  if (error) { document.getElementById('historyContent').innerHTML = '<div class="loading">오류: ' + error.message + '</div>'; return; }
+  if (!data.length) { document.getElementById('historyContent').innerHTML = '<div class="loading">저장된 견적이 없습니다.</div>'; return; }
+  document.getElementById('historyContent').innerHTML = `
+    <table class="history-table">
+      <thead><tr>
+        <th>견적번호</th><th>업체명</th><th>담당자</th><th>금액(공급가)</th><th>품목수</th><th>날짜</th>
+      </tr></thead>
+      <tbody>${data.map(q=>`<tr>
+        <td><span class="badge badge-gold">${q.quote_number||'-'}</span></td>
+        <td style="font-weight:600">${q.client_name}</td>
+        <td style="color:var(--gray);font-size:12px">${q.employee_name}</td>
+        <td style="font-weight:700;color:#1a472a">₩ ${(q.total_amount||0).toLocaleString()}</td>
+        <td>${Array.isArray(q.items)?q.items.length:'-'}개</td>
+        <td style="color:var(--gray);font-size:12px">${new Date(q.created_at).toLocaleDateString('ko-KR')}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+function toggleForm() {
+  const sec = document.getElementById('formSection');
+  const icon = document.getElementById('formToggleIcon');
+  if (sec.style.display==='none') { sec.style.display='block'; icon.textContent='▲ 접기'; }
+  else { sec.style.display='none'; icon.textContent='▼ 펼치기'; }
+}
+function clearAll() {
+  if (!confirm('초기화하시겠습니까?')) return;
+  selectedItems=[];
+  document.getElementById('client').value='';
+  document.getElementById('noteText').value='';
+  renderProductList(); renderEditTable(); updatePreview();
+}
+function downloadPDF() { window.print(); }
+
+</script>
+
+</body>
+</html>
