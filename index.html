@@ -548,10 +548,14 @@ function renderProductList() {
     const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
     return matchCat && matchQ;
   });
-  if (q) filtered.sort((a,b) => {
-    const as = a.name.toLowerCase().startsWith(q), bs = b.name.toLowerCase().startsWith(q);
-    return as&&!bs ? -1 : !as&&bs ? 1 : 0;
-  });
+  if (q) {
+    filtered.sort((a,b) => {
+      const as = a.name.toLowerCase().startsWith(q), bs = b.name.toLowerCase().startsWith(q);
+      return as&&!bs ? -1 : !as&&bs ? 1 : a.name.localeCompare(b.name, 'ko');
+    });
+  } else {
+    filtered.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  }
   const list = document.getElementById('productList');
   const countEl = document.getElementById('productCount');
   const limit = q ? filtered.length : 200;
