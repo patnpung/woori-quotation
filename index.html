@@ -808,27 +808,7 @@ async function adminUpload() {
   statusEl.style.background = '#fff8e1';
   statusEl.style.color = '#555';
   btn.disabled = true; btn.style.opacity = '0.5';
-  const CATEGORY_MAP = {
-    '탁주':'탁주/막걸리',
-    '약주':'약주/청주','청주':'약주/청주','청주5':'약주/청주',
-    '희석식소주':'소주(희석식)',
-    '증류식소주':'소주(증류식)','증류식소주5':'소주(증류식)',
-    '소주':'소주(희석식)',
-    '맥주':'맥주',
-    '수입맥주':'수입맥주','수입맥주5':'수입맥주',
-    '생맥주':'생맥주','수입생맥주':'생맥주','생크래프트':'생맥주',
-    '과실주':'과실주','과실주5':'과실주',
-    '와인':'와인',
-    '위스키':'위스키','위스키5':'위스키',
-    '브랜디':'브랜디',
-    '일반증류주':'일반증류주','일반증류주2':'일반증류주','일반증류주5':'일반증류주',
-    '리큐르':'리큐르','리큐르2':'리큐르','리큐르5':'리큐르',
-    '기타주류':'기타주류','기타주류2':'기타주류','기타주류5':'기타주류',
-    '일본사케':'일본사케','일본사케(과실주)':'일본사케','일본사케(기타주)':'일본사케','일본사케(리큐르)':'일본사케','일본사케(증류식소주)':'일본사케',
-    '비주류':'비주류',
-    '음료':'음료',
-    '영':'기타주류'
-  };
+  // 카테고리: J열 원본값 35개 그대로 사용 (별도 매핑 없음)
   function parseDeliveryFee(bigo) {
     if (!bigo || !String(bigo).includes('택배')) return 0;
     const m = String(bigo).match(/([\d,]+)원/);
@@ -849,7 +829,7 @@ async function adminUpload() {
       if (!name || !bottles) continue;
       products.push({
         name, volume: parseInt(r[2])||0, bottles,
-        category: CATEGORY_MAP[String(r[9]||'').trim()]||'기타주류',
+        category: String(r[9]||'').trim()||'기타주류',
         unit_cost: parseInt(r[25])||0,
         ilban_cost: parseInt(r[33])||0,
         yuhung_cost: parseInt(r[41])||0,
