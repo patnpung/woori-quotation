@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1a2744">
-  <meta name="apple-mobile-web-app-capale" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="우리주류">
   <link rel="apple-touch-icon" href="/icon-192.png">
 <title>우리주류상사 견적서 시스템</title>
@@ -113,7 +113,7 @@
   }
   .search-input:focus { border-color: var(--gold); }
   .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--gray); pointer-events: none; }
-  .filter-tabs { display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0; max-height: 90px; overflow-y: auto; }
+  .filter-tabs { display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0; }
   .filter-tab {
     background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
     color: var(--gray); font-size: 10px; padding: 3px 9px; border-radius: 20px;
@@ -499,7 +499,7 @@ async function initApp() {
 async function loadProducts() {
   const listEl = document.getElementById('productList');
   if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#888;">&#9203; 품목 로딩 중...</div>';
-  const { data, error } = await sb.from('products').select('*').order('id');
+  const { data, error } = await sb.from('products').select('*').order('id').range(0, 4999);
   if (error || !data) {
     if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#e74c3c;">품목 로드 실패. 새로고침 해주세요.</div>';
     return;
@@ -808,7 +808,27 @@ async function adminUpload() {
   statusEl.style.background = '#fff8e1';
   statusEl.style.color = '#555';
   btn.disabled = true; btn.style.opacity = '0.5';
-  const CATEGORY_MAP = {'탁주':'탁주/막걸리','약주':'약주/청주','청주':'약주/청주','증류식소주':'소주','희석식소주':'소주','소주':'소주','맥주':'맥주','과실주':'과실주','위스키':'위스키','브랜디':'브랜디','일반증류주':'일반증류주','리큐르':'리큐르','기타주류':'기타주류','영':'기타주류'};
+  const CATEGORY_MAP = {
+    '탁주':'탁주/막걸리',
+    '약주':'약주/청주','청주':'약주/청주','청주5':'약주/청주',
+    '희석식소주':'소주(희석식)',
+    '증류식소주':'소주(증류식)','증류식소주5':'소주(증류식)',
+    '소주':'소주(희석식)',
+    '맥주':'맥주',
+    '수입맥주':'수입맥주','수입맥주5':'수입맥주',
+    '생맥주':'생맥주','수입생맥주':'생맥주','생크래프트':'생맥주',
+    '과실주':'과실주','과실주5':'과실주',
+    '와인':'와인',
+    '위스키':'위스키','위스키5':'위스키',
+    '브랜디':'브랜디',
+    '일반증류주':'일반증류주','일반증류주2':'일반증류주','일반증류주5':'일반증류주',
+    '리큐르':'리큐르','리큐르2':'리큐르','리큐르5':'리큐르',
+    '기타주류':'기타주류','기타주류2':'기타주류','기타주류5':'기타주류',
+    '일본사케':'일본사케','일본사케(과실주)':'일본사케','일본사케(기타주)':'일본사케','일본사케(리큐르)':'일본사케','일본사케(증류식소주)':'일본사케',
+    '비주류':'비주류',
+    '음료':'음료',
+    '영':'기타주류'
+  };
   function parseDeliveryFee(bigo) {
     if (!bigo || !String(bigo).includes('택배')) return 0;
     const m = String(bigo).match(/([\d,]+)원/);
