@@ -113,7 +113,10 @@
   }
   .search-input:focus { border-color: var(--gold); }
   .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--gray); pointer-events: none; }
-  .filter-tabs { display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0; }
+  .filter-tabs { display: flex; gap: 5px; flex-wrap: wrap; flex-shrink: 0; max-height: 72px; overflow-y: auto; padding-right: 4px; }
+  .filter-tabs::-webkit-scrollbar { width: 4px; }
+  .filter-tabs::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.4); border-radius: 2px; }
+  .filter-tabs::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 2px; }
   .filter-tab {
     background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
     color: var(--gray); font-size: 10px; padding: 3px 9px; border-radius: 20px;
