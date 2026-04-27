@@ -686,7 +686,8 @@ function addCheckedToQuote() {
   checkedSet.forEach(idx => {
     const p = PRODUCTS.find(p=>p._idx===idx);
     if (p && !selectedItems.some(s=>s.idx===idx)) {
-      selectedItems.push({idx, name:p.name, volume:p.volume, bottles:p.bottles, category:p.category, unitCost:p.unit_cost, ilbanCost:p.ilban_cost, yuhungCost:p.yuhung_cost, price:p.unit_cost, qty:1, deliveryFee:p.delivery_fee||0});
+      const df = p.delivery_fee||0;
+      selectedItems.push({idx, name:p.name, volume:p.volume, bottles:p.bottles, category:p.category, unitCost:p.unit_cost, ilbanCost:p.ilban_cost, yuhungCost:p.yuhung_cost, price:calcInitialPrice(p.unit_cost, p.bottles, df), qty:1, deliveryFee:df});
       added++;
     }
   });
@@ -705,9 +706,11 @@ function applyJeongga() {
     const jeongga = p.yuhung_cost > 0 ? p.yuhung_cost : (p.ilban_cost > 0 ? p.ilban_cost : 0);
     if (jeongga > 0) {
       item.price = jeongga;
-      // 매입가 대비 마진% 역산하여 표시
-      if (p.unit_cost > 0) {
-        item.marginPct = Math.round((jeongga / p.unit_cost - 1) * 100 * 10) / 10;
+      item.deliveryFee = 0; // 정가에 택배비 이미 포함 → 별도 추가 안 함
+      // 매입가 대비 마진% 역산
+      const adjCost = calcInitialPrice(p.unit_cost, p.bottles, p.delivery_fee||0);
+      if (adjCost > 0) {
+        item.marginPct = Math.round((jeongga / adjCost - 1) * 100 * 10) / 10;
       }
     }
   });
@@ -720,7 +723,11 @@ function applyMarginOne(i) {
   const pct = !isNaN(rowVal) ? rowVal : globalVal;
   if (isNaN(pct) || pct < 0) { alert('마진율(%)을 입력해주세요'); return; }
   const p = PRODUCTS.find(p => p._idx === selectedItems[i].idx);
-  if (p) selectedItems[i].price = Math.round(p.unit_cost * (1 + pct / 100));
+  if (p) {
+    const basePrice = Math.round(p.unit_cost * (1 + pct / 100));
+    selectedItems[i].price = calcInitialPrice(basePrice, p.bottles, selectedItems[i].deliveryFee||0);
+    selectedItems[i].deliveryFee = selectedItems[i].deliveryFee||0; // 유지
+  }
   selectedItems[i].marginPct = pct;
   renderEditTable(); updatePreview();
 }
@@ -730,16 +737,28 @@ function applyMargin() {
   if (isNaN(pct) || pct < 0) { alert('마진율을 입력해주세요 (예: 10)'); return; }
   selectedItems.forEach(item => {
     const p = PRODUCTS.find(p => p._idx === item.idx);
-    if (p) item.price = Math.round(p.unit_cost * (1 + pct / 100));
+    if (p) {
+      const basePrice = Math.round(p.unit_cost * (1 + pct / 100));
+      item.price = calcInitialPrice(basePrice, p.bottles, item.deliveryFee||0);
+    }
     item.marginPct = pct;
   });
   renderEditTable(); updatePreview();
+}
+function calcInitialPrice(unitCost, bottles, deliveryFee) {
+  // 매입가에 택배비를 본당 단가로 환산하여 포함
+  if (deliveryFee > 0 && bottles > 0) return Math.round((unitCost * bottles + deliveryFee) / bottles);
+  return unitCost;
 }
 function toggleItem(idx) {
   const p = PRODUCTS.find(p=>p._idx===idx);
   const existIdx = selectedItems.findIndex(s=>s.idx===idx);
   if (existIdx>=0) { selectedItems.splice(existIdx,1); }
-  else { selectedItems.push({idx,name:p.name,volume:p.volume,bottles:p.bottles,category:p.category,unitCost:p.unit_cost,ilbanCost:p.ilban_cost,yuhungCost:p.yuhung_cost,price:p.unit_cost,qty:1,deliveryFee:p.delivery_fee||0}); }
+  else {
+    const df = p.delivery_fee||0;
+    const initPrice = calcInitialPrice(p.unit_cost, p.bottles, df);
+    selectedItems.push({idx,name:p.name,volume:p.volume,bottles:p.bottles,category:p.category,unitCost:p.unit_cost,ilbanCost:p.ilban_cost,yuhungCost:p.yuhung_cost,price:initPrice,qty:1,deliveryFee:df});
+  }
   renderProductList(); renderEditTable(); updatePreview();
 }
 function renderEditTable() {
@@ -749,7 +768,7 @@ function renderEditTable() {
   el.innerHTML = `<table class="edit-table"><thead><tr>
     <th style="width:26%">상품명</th><th>용량</th><th>본수</th><th>수량(상자)</th><th>단가(본당)</th><th>마진%</th><th>합계금액</th><th></th>
   </tr></thead><tbody>${selectedItems.map((item,i) => {
-    const calcAmt = Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty;
+    const calcAmt = Math.ceil(item.price*item.bottles/10)*10*item.qty;
     return `<tr>
     <td>${item.name}</td><td>${item.volume}ml</td><td>${item.bottles}본</td>
     <td><input type="number" class="qty-input" value="${item.qty}" min="1" onchange="updateQty(${i},this.value)" /></td>
@@ -760,17 +779,24 @@ function renderEditTable() {
   </tr>`;}).join('')}</tbody></table>`;
 }
 function updateQty(i,v){selectedItems[i].qty=parseInt(v)||1;renderEditTable();updatePreview();}
-function updatePrice(i,v){selectedItems[i].price=parseInt(v)||0;const unitCost=selectedItems[i].unitCost;if(unitCost>0){selectedItems[i].marginPct=Math.round((selectedItems[i].price/unitCost-1)*100*10)/10;}renderEditTable();updatePreview();}
+function updatePrice(i,v){
+  selectedItems[i].price=parseInt(v)||0;
+  const adjCost = calcInitialPrice(selectedItems[i].unitCost, selectedItems[i].bottles, selectedItems[i].deliveryFee||0);
+  if(adjCost>0){selectedItems[i].marginPct=Math.round((selectedItems[i].price/adjCost-1)*100*10)/10;}
+  renderEditTable();updatePreview();
+}
 function updateTotalAmount(i, totalVal) {
   const item = selectedItems[i];
   const total = parseInt(totalVal) || 0;
   if (total <= 0 || item.bottles <= 0 || item.qty <= 0) return;
-  // 합계금액 → 단가 역산: total = ceil((price*bottles+deliveryFee)/10)*10 * qty
+  // 합계금액 → 단가 역산 (deliveryFee 이미 단가에 포함)
   const perBox = total / item.qty;
-  const newPrice = Math.round((perBox - (item.deliveryFee || 0)) / item.bottles);
+  const newPrice = Math.round(perBox / item.bottles);
   item.price = Math.max(0, newPrice);
-  if (item.unitCost > 0) {
-    item.marginPct = Math.round((item.price / item.unitCost - 1) * 100 * 10) / 10;
+  // 마진% = 새 단가 vs 택배비 반영 원가 비교
+  const adjCost = calcInitialPrice(item.unitCost, item.bottles, item.deliveryFee||0);
+  if (adjCost > 0) {
+    item.marginPct = Math.round((item.price / adjCost - 1) * 100 * 10) / 10;
   }
   renderEditTable(); updatePreview();
 }
@@ -805,7 +831,7 @@ function updatePreview() {
   const noteText = document.getElementById('noteText').value||'';
   const dateStr = quoteDate ? new Date(quoteDate).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
   const displayItems = getSortedItems();
-  const subtotal = displayItems.reduce((s, item) => s + Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty, 0);
+  const subtotal = displayItems.reduce((s, item) => s + Math.ceil(item.price*item.bottles/10)*10*item.qty, 0);
   const vat = Math.round(subtotal*0.1);
   const total = subtotal+vat;
   const rows = !displayItems.length
@@ -814,7 +840,7 @@ function updatePreview() {
         <td>${i+1}. ${item.name} (${item.volume}ml)</td>
         <td>${item.qty}상자</td><td>${item.bottles}본</td>
         <td>${item.price.toLocaleString()}</td>
-        <td style="font-weight:700;color:#1a472a">${(Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty).toLocaleString()}</td>
+        <td style="font-weight:700;color:#1a472a">${(Math.ceil(item.price*item.bottles/10)*10*item.qty).toLocaleString()}</td>
       </tr>`).join('');
   document.getElementById('quoteDoc').innerHTML = `
     <div class="quote-title-row">
