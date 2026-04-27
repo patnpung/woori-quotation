@@ -376,8 +376,7 @@
             <div class="form-group"><div class="form-label">수신 업체명</div><input type="text" class="form-input" id="client" placeholder="예) OO 귀하" /></div>
             <div class="form-group"><div class="form-label">견적 날짜</div><input type="date" class="form-input" id="quoteDate" /></div>
           </div>
-          <div class="form-row">
-            <div class="form-group"><div class="form-label">유효기간</div><input type="text" class="form-input" id="validity" value="30일" /></div>
+          <div class="form-row full">
             <div class="form-group"><div class="form-label">견적번호</div><input type="text" class="form-input" id="quoteNum" /></div>
           </div>
           <div class="form-row">
@@ -533,13 +532,13 @@ sb.auth.onAuthStateChange((event, session) => {
 async function initApp() {
   const today = new Date();
   document.getElementById('quoteDate').value = today.toISOString().split('T')[0];
-  const num = 'WL-' + today.getFullYear() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0') + '-001';
+  const num = today.getFullYear() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0') + '-001';
   document.getElementById('quoteNum').value = num;
   const searchEl = document.getElementById('searchInput');
   searchEl.addEventListener('input', filterProducts);
   searchEl.addEventListener('keyup', filterProducts);
   searchEl.addEventListener('compositionend', filterProducts);
-  document.querySelectorAll('.form-input,#quoteDate,#validity,#quoteNum,#companyName').forEach(el => el.addEventListener('input', updatePreview));
+  document.querySelectorAll('.form-input,#quoteDate,#quoteNum,#companyName').forEach(el => el.addEventListener('input', updatePreview));
   await loadProducts();
   updatePreview();
 }
@@ -802,7 +801,6 @@ function updatePreview() {
   const client = document.getElementById('client').value||'(업체명)';
   const companyName = document.getElementById('companyName') ? document.getElementById('companyName').value.trim() : '';
   const quoteDate = document.getElementById('quoteDate').value||'';
-  const validity = document.getElementById('validity').value||'30일';
   const quoteNum = document.getElementById('quoteNum').value||'';
   const noteText = document.getElementById('noteText').value||'';
   const dateStr = quoteDate ? new Date(quoteDate).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
@@ -826,7 +824,6 @@ function updatePreview() {
     <div class="quote-meta">
       <div><div class="quote-meta-label">견적번호</div><div class="quote-meta-value">${quoteNum}</div></div>
       <div><div class="quote-meta-label">견적일자</div><div class="quote-meta-value">${dateStr}</div></div>
-      <div><div class="quote-meta-label">유효기간</div><div class="quote-meta-value">${validity}</div></div>
     </div>
     <div class="quote-recipient"><div class="quote-recipient-name">${client}</div><div class="quote-recipient-sub">아래와 같이 견적을 제출합니다.</div></div>
     <div style="font-size:11px;color:#555;text-align:right;margin-bottom:5px;">※ 부가세(VAT) 포함 &nbsp;|&nbsp; 용기보증금 별도</div>
@@ -835,7 +832,7 @@ function updatePreview() {
     </tr></thead><tbody>${rows}</tbody></table>
 
     ${noteText?`<div class="quote-note"><strong>📌 특이사항</strong><br>${noteText.replace(/\n/g,'<br>')}</div>`:''}
-    <div class="quote-footer">본 견적서는 발행일로부터 ${validity} 동안 유효합니다.</div>`;
+    <div class="quote-footer">본 견적서에 대하여 문의 사항이 있으시면 연락 주시기 바랍니다.</div>`;
 }
 
 // ── 이미지 저장 ──
