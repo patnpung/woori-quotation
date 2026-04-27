@@ -152,7 +152,18 @@
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .product-count { font-size: 11px; color: var(--gold); text-align: center; padding: 4px 0; flex-shrink: 0; }
-  .bulk-bar { display: flex; align-items: center; gap: 8px; padding: 5px 2px; flex-shrink: 0; }
+  .bulk-bar { display: flex; align-items: center; gap: 8px; padding: 5px 2px; flex-shrink: 0; flex-wrap: wrap; }
+  .usage-filter-group { display: flex; gap: 3px; align-items: center; }
+  .usage-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+    color: var(--gray); font-size: 10px; font-weight: 600; padding: 3px 8px;
+    border-radius: 5px; cursor: pointer; font-family: "Noto Sans KR", sans-serif; transition: all 0.15s;
+  }
+  .usage-btn:hover { color: var(--white); }
+  .usage-btn.active { background: rgba(255,255,255,0.2); color: var(--white); border-color: rgba(255,255,255,0.5); }
+  .usage-btn[data-usage="유흥"].active { background: #7a2a4a; border-color: #c05080; }
+  .usage-btn[data-usage="일반"].active { background: #1a5a3a; border-color: #40a060; }
+  .usage-btn[data-usage="공용"].active { background: #3a4a7a; border-color: #6080c0; }
   .bulk-check-all { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px; color: var(--gray); user-select: none; }
   .bulk-check-all input[type=checkbox] { accent-color: var(--gold); width: 14px; height: 14px; cursor: pointer; }
   .bulk-add-btn {
@@ -369,6 +380,12 @@
             <input type="checkbox" id="checkAll" onchange="toggleAllCheck(this.checked)" />
             전체선택
           </label>
+          <div class="usage-filter-group">
+            <button class="usage-btn active" data-usage="all" onclick="setUsage('all', this)">전체</button>
+            <button class="usage-btn" data-usage="유흥" onclick="setUsage('유흥', this)">유흥</button>
+            <button class="usage-btn" data-usage="일반" onclick="setUsage('일반', this)">일반</button>
+            <button class="usage-btn" data-usage="공용" onclick="setUsage('공용', this)">공용</button>
+          </div>
           <button class="bulk-add-btn" id="bulkAddBtn" onclick="addCheckedToQuote()">선택 추가 (0개)</button>
         </div>
         <div class="product-list" id="productList"></div>
@@ -447,6 +464,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 let PRODUCTS = [];
 let selectedItems = [];
 let currentCategory = 'all';
+let currentUsage = 'all';
 let currentUser = null;
 let searchTimer = null;
 let checkedSet = new Set();
@@ -540,6 +558,12 @@ function setCategory(cat, el) {
   el.classList.add('active');
   filterProducts();
 }
+function setUsage(usage, el) {
+  currentUsage = usage;
+  document.querySelectorAll('.usage-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  filterProducts();
+}
 function filterProducts() {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(renderProductList, 50);
@@ -548,8 +572,9 @@ function renderProductList() {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   let filtered = PRODUCTS.filter(p => {
     const matchCat = currentCategory==='all' || p.category===currentCategory;
+    const matchUsage = currentUsage==='all' || (p.usage_type||'').trim()===currentUsage;
     const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
-    return matchCat && matchQ;
+    return matchCat && matchUsage && matchQ;
   });
   if (q) {
     filtered.sort((a,b) => {
@@ -607,8 +632,9 @@ function toggleCheck(idx, checked) {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   let filtered = PRODUCTS.filter(p => {
     const matchCat = currentCategory==='all' || p.category===currentCategory;
+    const matchUsage = currentUsage==='all' || (p.usage_type||'').trim()===currentUsage;
     const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
-    return matchCat && matchQ;
+    return matchCat && matchUsage && matchQ;
   });
   const limit = q ? filtered.length : 200;
   const displayIdxs = filtered.slice(0, limit).map(p=>p._idx);
@@ -620,8 +646,9 @@ function toggleAllCheck(checked) {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   let filtered = PRODUCTS.filter(p => {
     const matchCat = currentCategory==='all' || p.category===currentCategory;
+    const matchUsage = currentUsage==='all' || (p.usage_type||'').trim()===currentUsage;
     const matchQ = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
-    return matchCat && matchQ;
+    return matchCat && matchUsage && matchQ;
   });
   const limit = q ? filtered.length : 200;
   filtered.slice(0, limit).forEach(p => { if (checked) checkedSet.add(p._idx); else checkedSet.delete(p._idx); });
@@ -837,6 +864,7 @@ async function adminUpload() {
       products.push({
         name, volume: parseInt(r[2])||0, bottles,
         category: String(r[9]||'').trim()||'기타주류',
+        usage_type: String(r[4]||'').trim()||'공용',
         unit_cost: parseInt(r[25])||0,
         ilban_cost: parseInt(r[33])||0,
         yuhung_cost: parseInt(r[41])||0,
