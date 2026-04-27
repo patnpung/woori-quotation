@@ -315,6 +315,107 @@
   .badge-gold { background: #fef3cd; color: #856404; }
   .loading { text-align: center; padding: 40px; color: var(--gray); font-size: 14px; }
 
+  /* ── 모바일 패널 전환 탭 (PC에서 숨김) ── */
+  .mobile-panel-switcher { display: none; }
+
+  /* ── 모바일 반응형 (768px 이하) ── */
+  @media (max-width: 768px) {
+    html, body { overflow: visible !important; height: auto !important; }
+
+    /* 헤더 압축 */
+    .header { padding: 10px 14px; flex-wrap: wrap; gap: 6px; }
+    .header-sub { display: none; }
+    .header-logo { font-size: 18px; }
+    .header-right { gap: 8px; }
+    .header-tabs { gap: 3px; }
+    .tab-btn { font-size: 10px; padding: 5px 9px; }
+    .header-user { font-size: 11px; }
+    .logout-btn { font-size: 10px; padding: 5px 8px; }
+
+    /* 콘텐츠 세로 배치 */
+    .content { display: block !important; height: auto !important; overflow: visible !important; }
+    #quoteTab { flex-direction: column !important; height: auto !important; overflow: visible !important; }
+    #historyTab { padding: 14px; }
+
+    /* 모바일 전환 탭 표시 */
+    .mobile-panel-switcher {
+      display: flex; background: var(--navy2);
+      border-bottom: 2px solid rgba(201,168,76,0.3);
+      position: sticky; top: 0; z-index: 200;
+    }
+    .mobile-panel-btn {
+      flex: 1; padding: 13px 8px; text-align: center;
+      color: var(--gray); font-size: 13px; font-weight: 700;
+      font-family: "Noto Sans KR", sans-serif; background: none;
+      border: none; border-bottom: 3px solid transparent; cursor: pointer;
+    }
+    .mobile-panel-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* 패널 모바일 전환 */
+    #quoteTab.show-left .left-panel { display: flex !important; }
+    #quoteTab.show-left .right-panel { display: none !important; }
+    #quoteTab.show-right .left-panel { display: none !important; }
+    #quoteTab.show-right .right-panel { display: block !important; }
+
+    /* 왼쪽 패널 */
+    .left-panel {
+      width: 100% !important; height: auto !important;
+      overflow: visible !important; flex-shrink: 0;
+    }
+    .product-list { max-height: 48vh; flex: none !important; }
+
+    /* 품목 아이템 터치 영역 확대 */
+    .product-item { padding: 11px 12px; gap: 10px; }
+    .product-name { font-size: 12px; }
+    .add-btn { width: 30px; height: 30px; font-size: 18px; }
+    .item-checkbox { width: 17px; height: 17px; }
+
+    /* 카테고리 탭 */
+    .filter-tab { font-size: 11px; padding: 5px 11px; }
+
+    /* 용도/전체선택 바 */
+    .bulk-bar { gap: 8px; padding: 8px 4px; }
+    .usage-btn { font-size: 11px; padding: 5px 11px; }
+    .bulk-check-all { font-size: 12px; }
+
+    /* 오른쪽 패널 */
+    .right-panel { padding: 14px !important; height: auto !important; overflow: visible !important; }
+    .right-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .right-header > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+    .btn { padding: 10px 12px; font-size: 12px; flex: 1; justify-content: center; min-width: 80px; }
+
+    /* 단가 일괄 적용 바 */
+    .price-apply-bar { flex-wrap: wrap; gap: 8px; }
+    .price-apply-btn { padding: 7px 14px; font-size: 12px; }
+    .margin-input { width: 70px; padding: 7px 8px; font-size: 13px; }
+
+    /* 편집 테이블 가로 스크롤 */
+    #editTable { max-height: none !important; overflow-x: auto !important; }
+    .edit-table { min-width: 580px; font-size: 12px; }
+    .qty-input { width: 50px; padding: 6px; }
+    .price-input { width: 80px; padding: 6px; }
+    .total-input { width: 90px; padding: 6px; }
+    .row-pct-input { width: 40px; }
+
+    /* 견적서 정렬 바 */
+    .quote-sort-bar { flex-wrap: wrap; gap: 6px; }
+    .sort-btn { padding: 6px 14px; font-size: 12px; }
+
+    /* 견적서 미리보기 */
+    .quote-doc { padding: 18px 14px; }
+    .quote-main-title { font-size: 22px; }
+    .quote-meta { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .quote-recipient-name { font-size: 18px; }
+    .quote-table { font-size: 11px; }
+    .quote-table th, .quote-table td { padding: 7px 8px; }
+    .total-grand .total-value { font-size: 17px; }
+
+    /* 기본정보 입력 폼 */
+    .form-row { grid-template-columns: 1fr; }
+    .form-input { padding: 9px 12px; font-size: 13px; }
+    textarea.form-input { min-height: 60px; }
+  }
+
   @media print {
     #loginScreen, .header, .left-panel, .right-header, .selected-items, .tab-btn, .logout-btn, .btn-group { display: none !important; }
     .content { display: block; }
@@ -364,7 +465,12 @@
 
   <div class="content">
     <!-- 견적서 작성 탭 -->
-    <div id="quoteTab">
+    <div id="quoteTab" class="show-left">
+      <!-- 모바일 패널 전환 탭 -->
+      <div class="mobile-panel-switcher">
+        <button class="mobile-panel-btn active" id="mobBtnLeft" onclick="setMobilePanel('left')">🔍 품목 선택</button>
+        <button class="mobile-panel-btn" id="mobBtnRight" onclick="setMobilePanel('right')">📄 견적서 <span id="mobItemBadge" style="display:none;background:var(--gold);color:var(--navy);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;">0</span></button>
+      </div>
       <!-- 왼쪽 패널 -->
       <div class="left-panel">
         <div class="panel-title" onclick="toggleForm()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
@@ -694,7 +800,7 @@ function addCheckedToQuote() {
   checkedSet.clear();
   const checkAllEl = document.getElementById('checkAll');
   if (checkAllEl) checkAllEl.checked = false;
-  renderProductList(); renderEditTable(); updatePreview();
+  renderProductList(); renderEditTable(); updatePreview(); updateMobileBadge();
   if (added > 0) alert(added + '개 품목이 견적서에 추가되었습니다.');
 }
 
@@ -759,7 +865,7 @@ function toggleItem(idx) {
     const initPrice = calcInitialPrice(p.unit_cost, p.bottles, df);
     selectedItems.push({idx,name:p.name,volume:p.volume,bottles:p.bottles,category:p.category,unitCost:p.unit_cost,ilbanCost:p.ilban_cost,yuhungCost:p.yuhung_cost,price:initPrice,qty:1,deliveryFee:df});
   }
-  renderProductList(); renderEditTable(); updatePreview();
+  renderProductList(); renderEditTable(); updatePreview(); updateMobileBadge();
 }
 function renderEditTable() {
   const el = document.getElementById('editTable');
@@ -800,8 +906,27 @@ function updateTotalAmount(i, totalVal) {
   }
   renderEditTable(); updatePreview();
 }
-function removeItem(i){selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
+function removeItem(i){selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();updateMobileBadge();}
 
+
+function setMobilePanel(view) {
+  const tab = document.getElementById('quoteTab');
+  tab.classList.remove('show-left', 'show-right');
+  tab.classList.add('show-' + view);
+  document.getElementById('mobBtnLeft').classList.toggle('active', view === 'left');
+  document.getElementById('mobBtnRight').classList.toggle('active', view === 'right');
+  if (view === 'right') window.scrollTo(0, 0);
+}
+function updateMobileBadge() {
+  const badge = document.getElementById('mobItemBadge');
+  if (!badge) return;
+  if (selectedItems.length > 0) {
+    badge.style.display = 'inline';
+    badge.textContent = selectedItems.length;
+  } else {
+    badge.style.display = 'none';
+  }
+}
 
 function setQuoteSort(sort, el) {
   currentQuoteSort = sort;
