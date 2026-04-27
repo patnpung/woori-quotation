@@ -252,6 +252,8 @@
   .edit-table td:nth-child(1) { text-align: left; font-weight: 500; font-size: 12px; }
   .qty-input { width: 55px; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; text-align: center; font-size: 12px; font-family: "Noto Sans KR", sans-serif; color: var(--navy); font-weight: 600; }
   .price-input { width: 90px; border: 1px solid #d4edda; border-radius: 5px; padding: 5px 8px; text-align: right; font-size: 12px; font-family: "Noto Sans KR", sans-serif; color: #1a472a; font-weight: 700; background: #f8fdf9; }
+  .total-input { width: 100px; border: 2px solid #b8d4c8; border-radius: 5px; padding: 5px 8px; text-align: right; font-size: 12px; font-family: "Noto Sans KR", sans-serif; color: #1a472a; font-weight: 700; background: #eef7f2; }
+  .total-input:focus { border-color: #2e7d32; outline: none; background: #e0f0e8; }
   .del-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 16px; }
   .del-btn:hover { color: var(--red); }
   .empty-state { text-align: center; padding: 30px; color: var(--gray); }
@@ -490,7 +492,6 @@ let selectedItems = [];
 let currentCategory = 'all';
 let currentUsage = 'all';
 let currentQuoteSort = 'none';
-let overrideAmounts = {}; // key: item.idx → 수동 입력 금액
 let currentUser = null;
 let searchTimer = null;
 let checkedSet = new Set();
@@ -747,36 +748,35 @@ function renderEditTable() {
   document.getElementById('itemCount').textContent = selectedItems.length + '개';
   if (!selectedItems.length) { el.innerHTML = '<div class="empty-state">왼쪽에서 품목을 선택해 주세요</div>'; return; }
   el.innerHTML = `<table class="edit-table"><thead><tr>
-    <th style="width:28%">상품명</th><th>용량</th><th>본수</th><th>수량(상자)</th><th>단가(본당)</th><th>마진%</th><th>금액</th><th></th>
-  </tr></thead><tbody>${selectedItems.map((item,i) => `<tr>
+    <th style="width:26%">상품명</th><th>용량</th><th>본수</th><th>수량(상자)</th><th>단가(본당)</th><th>마진%</th><th>합계금액</th><th></th>
+  </tr></thead><tbody>${selectedItems.map((item,i) => {
+    const calcAmt = Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty;
+    return `<tr>
     <td>${item.name}</td><td>${item.volume}ml</td><td>${item.bottles}본</td>
     <td><input type="number" class="qty-input" value="${item.qty}" min="1" onchange="updateQty(${i},this.value)" /></td>
     <td><input type="number" class="price-input" value="${item.price}" min="0" onchange="updatePrice(${i},this.value)" /></td>
     <td><div class="price-cell"><input type="number" class="row-pct-input" id="rowpct_${i}" placeholder="%" min="0" max="999" value="${item.marginPct !== undefined && item.marginPct !== null ? item.marginPct : ''}" /><span class="pct-sep">%</span><button class="row-pct-apply" onclick="applyMarginOne(${i})">적용</button></div></td>
-    <td style="font-weight:700;color:#1a472a">${(Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty).toLocaleString()}${item.deliveryFee>0?'<span style="font-size:10px;color:#e67e22;margin-left:3px">(택배포함)</span>':''}</td>
+    <td><input type="number" class="total-input" value="${calcAmt}" min="0" step="10" onchange="updateTotalAmount(${i},this.value)" title="합계금액 입력 시 단가 자동 역산" />${item.deliveryFee>0?'<span style="font-size:10px;color:#e67e22;margin-left:3px">(택배포함)</span>':''}</td>
     <td><button class="del-btn" onclick="removeItem(${i})">✕</button></td>
-  </tr>`).join('')}</tbody></table>`;
+  </tr>`;}).join('')}</tbody></table>`;
 }
 function updateQty(i,v){selectedItems[i].qty=parseInt(v)||1;renderEditTable();updatePreview();}
 function updatePrice(i,v){selectedItems[i].price=parseInt(v)||0;const unitCost=selectedItems[i].unitCost;if(unitCost>0){selectedItems[i].marginPct=Math.round((selectedItems[i].price/unitCost-1)*100*10)/10;}renderEditTable();updatePreview();}
-function removeItem(i){const idx=selectedItems[i].idx;delete overrideAmounts[idx];selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
-
-function saveOverrideAmount(el) {
-  const idx = parseInt(el.dataset.idx);
-  const calcAmt = parseInt(el.dataset.calc);
-  const raw = el.innerText.replace(/,/g,'').replace(/수정/g,'').trim();
-  const val = parseInt(raw);
-  if (!isNaN(val) && val >= 0) {
-    if (val === calcAmt) {
-      delete overrideAmounts[idx]; // 원래 값이면 override 해제
-    } else {
-      overrideAmounts[idx] = val;
-    }
-  } else {
-    delete overrideAmounts[idx];
+function updateTotalAmount(i, totalVal) {
+  const item = selectedItems[i];
+  const total = parseInt(totalVal) || 0;
+  if (total <= 0 || item.bottles <= 0 || item.qty <= 0) return;
+  // 합계금액 → 단가 역산: total = ceil((price*bottles+deliveryFee)/10)*10 * qty
+  const perBox = total / item.qty;
+  const newPrice = Math.round((perBox - (item.deliveryFee || 0)) / item.bottles);
+  item.price = Math.max(0, newPrice);
+  if (item.unitCost > 0) {
+    item.marginPct = Math.round((item.price / item.unitCost - 1) * 100 * 10) / 10;
   }
-  updatePreview();
+  renderEditTable(); updatePreview();
 }
+function removeItem(i){selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
+
 
 function setQuoteSort(sort, el) {
   currentQuoteSort = sort;
@@ -807,29 +807,17 @@ function updatePreview() {
   const noteText = document.getElementById('noteText').value||'';
   const dateStr = quoteDate ? new Date(quoteDate).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
   const displayItems = getSortedItems();
-  const subtotal = displayItems.reduce((s, item) => {
-    const calc = Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty;
-    return s + (overrideAmounts[item.idx] !== undefined ? overrideAmounts[item.idx] : calc);
-  }, 0);
+  const subtotal = displayItems.reduce((s, item) => s + Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty, 0);
   const vat = Math.round(subtotal*0.1);
   const total = subtotal+vat;
   const rows = !displayItems.length
     ? '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">선택된 품목이 없습니다</td></tr>'
-    : displayItems.map((item,i)=>{
-        const calcAmt = Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty;
-        const dispAmt = overrideAmounts[item.idx] !== undefined ? overrideAmounts[item.idx] : calcAmt;
-        const isOverride = overrideAmounts[item.idx] !== undefined;
-        return `<tr>
-          <td>${i+1}. ${item.name} (${item.volume}ml)</td>
-          <td>${item.qty}상자</td><td>${item.bottles}본</td>
-          <td>${item.price.toLocaleString()}</td>
-          <td class="amount-cell" contenteditable="true" data-idx="${item.idx}" data-calc="${calcAmt}"
-              style="font-weight:700;color:${isOverride?'#e67e22':'#1a472a'};text-align:right;"
-              onblur="saveOverrideAmount(this)"
-              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-              title="클릭하여 금액 직접 수정">${dispAmt.toLocaleString()}${isOverride?'<sup style="font-size:9px;color:#e67e22;margin-left:2px">수정</sup>':''}</td>
-        </tr>`;
-      }).join('');
+    : displayItems.map((item,i)=>`<tr>
+        <td>${i+1}. ${item.name} (${item.volume}ml)</td>
+        <td>${item.qty}상자</td><td>${item.bottles}본</td>
+        <td>${item.price.toLocaleString()}</td>
+        <td style="font-weight:700;color:#1a472a">${(Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty).toLocaleString()}</td>
+      </tr>`).join('');
   document.getElementById('quoteDoc').innerHTML = `
     <div class="quote-title-row">
       <div><div class="quote-main-title">견 적 서</div><div style="font-size:11px;color:var(--gray);margin-top:4px">QUOTATION</div></div>
@@ -1005,7 +993,6 @@ function toggleForm() {
 function clearAll() {
   if (!confirm('초기화하시겠습니까?')) return;
   selectedItems=[];
-  overrideAmounts={};
   document.getElementById('client').value='';
   document.getElementById('noteText').value='';
   renderProductList(); renderEditTable(); updatePreview();
