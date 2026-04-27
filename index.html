@@ -267,6 +267,13 @@
   .sort-btn:hover { color: var(--white); }
   .sort-btn.active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
 
+  /* 견적서 금액 직접 편집 */
+  .amount-cell { cursor: text; border-radius: 3px; transition: background 0.15s; min-width: 60px; }
+  .amount-cell:hover { background: #f0f7f0; outline: 1px dashed #aacaaa; }
+  .amount-cell:focus { background: #e8f5e9; outline: 2px solid #2e7d32; outline-offset: 1px; }
+  .amount-cell-wrap { position: relative; }
+  .amount-override-mark { font-size: 9px; color: #e67e22; margin-left: 3px; }
+
   /* 견적서 미리보기 */
   .quote-preview { background: var(--white); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 40px; }
   .quote-doc { padding: 36px; font-family: "Noto Sans KR", sans-serif; }
@@ -483,6 +490,7 @@ let selectedItems = [];
 let currentCategory = 'all';
 let currentUsage = 'all';
 let currentQuoteSort = 'none';
+let overrideAmounts = {}; // key: item.idx → 수동 입력 금액
 let currentUser = null;
 let searchTimer = null;
 let checkedSet = new Set();
@@ -751,7 +759,24 @@ function renderEditTable() {
 }
 function updateQty(i,v){selectedItems[i].qty=parseInt(v)||1;renderEditTable();updatePreview();}
 function updatePrice(i,v){selectedItems[i].price=parseInt(v)||0;const unitCost=selectedItems[i].unitCost;if(unitCost>0){selectedItems[i].marginPct=Math.round((selectedItems[i].price/unitCost-1)*100*10)/10;}renderEditTable();updatePreview();}
-function removeItem(i){const idx=selectedItems[i].idx;selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
+function removeItem(i){const idx=selectedItems[i].idx;delete overrideAmounts[idx];selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
+
+function saveOverrideAmount(el) {
+  const idx = parseInt(el.dataset.idx);
+  const calcAmt = parseInt(el.dataset.calc);
+  const raw = el.innerText.replace(/,/g,'').replace(/수정/g,'').trim();
+  const val = parseInt(raw);
+  if (!isNaN(val) && val >= 0) {
+    if (val === calcAmt) {
+      delete overrideAmounts[idx]; // 원래 값이면 override 해제
+    } else {
+      overrideAmounts[idx] = val;
+    }
+  } else {
+    delete overrideAmounts[idx];
+  }
+  updatePreview();
+}
 
 function setQuoteSort(sort, el) {
   currentQuoteSort = sort;
@@ -781,18 +806,30 @@ function updatePreview() {
   const quoteNum = document.getElementById('quoteNum').value||'';
   const noteText = document.getElementById('noteText').value||'';
   const dateStr = quoteDate ? new Date(quoteDate).toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
-  const subtotal = selectedItems.reduce((s,i)=>s+i.price*i.qty*i.bottles,0);
+  const displayItems = getSortedItems();
+  const subtotal = displayItems.reduce((s, item) => {
+    const calc = Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty;
+    return s + (overrideAmounts[item.idx] !== undefined ? overrideAmounts[item.idx] : calc);
+  }, 0);
   const vat = Math.round(subtotal*0.1);
   const total = subtotal+vat;
-  const displayItems = getSortedItems();
   const rows = !displayItems.length
     ? '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">선택된 품목이 없습니다</td></tr>'
-    : displayItems.map((item,i)=>`<tr>
-        <td>${i+1}. ${item.name} (${item.volume}ml)</td>
-        <td>${item.qty}상자</td><td>${item.bottles}본</td>
-        <td>${item.price.toLocaleString()}</td>
-        <td style="font-weight:700;color:#1a472a">${(Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty).toLocaleString()}</td>
-      </tr>`).join('');
+    : displayItems.map((item,i)=>{
+        const calcAmt = Math.ceil((item.price*item.bottles+(item.deliveryFee||0))/10)*10*item.qty;
+        const dispAmt = overrideAmounts[item.idx] !== undefined ? overrideAmounts[item.idx] : calcAmt;
+        const isOverride = overrideAmounts[item.idx] !== undefined;
+        return `<tr>
+          <td>${i+1}. ${item.name} (${item.volume}ml)</td>
+          <td>${item.qty}상자</td><td>${item.bottles}본</td>
+          <td>${item.price.toLocaleString()}</td>
+          <td class="amount-cell" contenteditable="true" data-idx="${item.idx}" data-calc="${calcAmt}"
+              style="font-weight:700;color:${isOverride?'#e67e22':'#1a472a'};text-align:right;"
+              onblur="saveOverrideAmount(this)"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+              title="클릭하여 금액 직접 수정">${dispAmt.toLocaleString()}${isOverride?'<sup style="font-size:9px;color:#e67e22;margin-left:2px">수정</sup>':''}</td>
+        </tr>`;
+      }).join('');
   document.getElementById('quoteDoc').innerHTML = `
     <div class="quote-title-row">
       <div><div class="quote-main-title">견 적 서</div><div style="font-size:11px;color:var(--gray);margin-top:4px">QUOTATION</div></div>
@@ -968,6 +1005,7 @@ function toggleForm() {
 function clearAll() {
   if (!confirm('초기화하시겠습니까?')) return;
   selectedItems=[];
+  overrideAmounts={};
   document.getElementById('client').value='';
   document.getElementById('noteText').value='';
   renderProductList(); renderEditTable(); updatePreview();
