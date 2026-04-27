@@ -256,6 +256,17 @@
   .del-btn:hover { color: var(--red); }
   .empty-state { text-align: center; padding: 30px; color: var(--gray); }
 
+  /* 견적서 정렬 바 */
+  .quote-sort-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; margin-bottom: 8px; flex-shrink: 0; }
+  .quote-sort-label { font-size: 10px; color: var(--gray); font-weight: 600; margin-right: 2px; }
+  .sort-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+    color: var(--gray); font-size: 11px; font-weight: 600; padding: 4px 12px;
+    border-radius: 5px; cursor: pointer; font-family: "Noto Sans KR", sans-serif; transition: all 0.15s;
+  }
+  .sort-btn:hover { color: var(--white); }
+  .sort-btn.active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+
   /* 견적서 미리보기 */
   .quote-preview { background: var(--white); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 40px; }
   .quote-doc { padding: 36px; font-family: "Noto Sans KR", sans-serif; }
@@ -423,6 +434,12 @@
           </div>
           <div id="editTable"><div class="empty-state">왼쪽에서 품목을 선택해 주세요</div></div>
         </div>
+        <div class="quote-sort-bar">
+          <span class="quote-sort-label">견적서 정렬:</span>
+          <button class="sort-btn active" data-sort="none" onclick="setQuoteSort('none', this)">입력순</button>
+          <button class="sort-btn" data-sort="category" onclick="setQuoteSort('category', this)">품목별</button>
+          <button class="sort-btn" data-sort="name" onclick="setQuoteSort('name', this)">가나다순</button>
+        </div>
         <div class="quote-preview"><div class="quote-doc" id="quoteDoc"></div></div>
       </div>
     </div>
@@ -465,6 +482,7 @@ let PRODUCTS = [];
 let selectedItems = [];
 let currentCategory = 'all';
 let currentUsage = 'all';
+let currentQuoteSort = 'none';
 let currentUser = null;
 let searchTimer = null;
 let checkedSet = new Set();
@@ -735,6 +753,26 @@ function updateQty(i,v){selectedItems[i].qty=parseInt(v)||1;renderEditTable();up
 function updatePrice(i,v){selectedItems[i].price=parseInt(v)||0;const unitCost=selectedItems[i].unitCost;if(unitCost>0){selectedItems[i].marginPct=Math.round((selectedItems[i].price/unitCost-1)*100*10)/10;}renderEditTable();updatePreview();}
 function removeItem(i){const idx=selectedItems[i].idx;selectedItems.splice(i,1);renderProductList();renderEditTable();updatePreview();}
 
+function setQuoteSort(sort, el) {
+  currentQuoteSort = sort;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  updatePreview();
+}
+
+function getSortedItems() {
+  const items = [...selectedItems];
+  if (currentQuoteSort === 'category') {
+    items.sort((a, b) => {
+      const catCmp = (a.category||'').localeCompare(b.category||'', 'ko');
+      return catCmp !== 0 ? catCmp : a.name.localeCompare(b.name, 'ko');
+    });
+  } else if (currentQuoteSort === 'name') {
+    items.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }
+  return items;
+}
+
 function updatePreview() {
   const client = document.getElementById('client').value||'(업체명)';
   const companyName = document.getElementById('companyName') ? document.getElementById('companyName').value.trim() : '';
@@ -746,9 +784,10 @@ function updatePreview() {
   const subtotal = selectedItems.reduce((s,i)=>s+i.price*i.qty*i.bottles,0);
   const vat = Math.round(subtotal*0.1);
   const total = subtotal+vat;
-  const rows = !selectedItems.length
+  const displayItems = getSortedItems();
+  const rows = !displayItems.length
     ? '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">선택된 품목이 없습니다</td></tr>'
-    : selectedItems.map((item,i)=>`<tr>
+    : displayItems.map((item,i)=>`<tr>
         <td>${i+1}. ${item.name} (${item.volume}ml)</td>
         <td>${item.qty}상자</td><td>${item.bottles}본</td>
         <td>${item.price.toLocaleString()}</td>
