@@ -831,8 +831,8 @@ function applyMarginOne(i) {
   const p = PRODUCTS.find(p => p._idx === selectedItems[i].idx);
   if (p) {
     const df = p.delivery_fee || 0;
-    const basePrice = Math.round(p.unit_cost * (1 + pct / 100));
-    selectedItems[i].price = calcInitialPrice(basePrice, p.bottles, df);
+    const adjCost = calcInitialPrice(p.unit_cost, p.bottles, df); // 택배비 포함 원가
+    selectedItems[i].price = Math.round(adjCost * (1 + pct / 100));
     selectedItems[i].deliveryFee = df; // 상품 원본 택배비로 복원
   }
   selectedItems[i].marginPct = pct;
@@ -846,8 +846,8 @@ function applyMargin() {
     const p = PRODUCTS.find(p => p._idx === item.idx);
     if (p) {
       const df = p.delivery_fee || 0;
-      const basePrice = Math.round(p.unit_cost * (1 + pct / 100));
-      item.price = calcInitialPrice(basePrice, p.bottles, df);
+      const adjCost = calcInitialPrice(p.unit_cost, p.bottles, df); // 택배비 포함 원가
+      item.price = Math.round(adjCost * (1 + pct / 100));
       item.deliveryFee = df; // 상품 원본 택배비로 복원
     }
     item.marginPct = pct;
