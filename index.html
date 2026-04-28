@@ -830,9 +830,10 @@ function applyMarginOne(i) {
   if (isNaN(pct) || pct < 0) { alert('마진율(%)을 입력해주세요'); return; }
   const p = PRODUCTS.find(p => p._idx === selectedItems[i].idx);
   if (p) {
+    const df = p.delivery_fee || 0;
     const basePrice = Math.round(p.unit_cost * (1 + pct / 100));
-    selectedItems[i].price = calcInitialPrice(basePrice, p.bottles, selectedItems[i].deliveryFee||0);
-    selectedItems[i].deliveryFee = selectedItems[i].deliveryFee||0; // 유지
+    selectedItems[i].price = calcInitialPrice(basePrice, p.bottles, df);
+    selectedItems[i].deliveryFee = df; // 상품 원본 택배비로 복원
   }
   selectedItems[i].marginPct = pct;
   renderEditTable(); updatePreview();
@@ -844,8 +845,10 @@ function applyMargin() {
   selectedItems.forEach(item => {
     const p = PRODUCTS.find(p => p._idx === item.idx);
     if (p) {
+      const df = p.delivery_fee || 0;
       const basePrice = Math.round(p.unit_cost * (1 + pct / 100));
-      item.price = calcInitialPrice(basePrice, p.bottles, item.deliveryFee||0);
+      item.price = calcInitialPrice(basePrice, p.bottles, df);
+      item.deliveryFee = df; // 상품 원본 택배비로 복원
     }
     item.marginPct = pct;
   });
