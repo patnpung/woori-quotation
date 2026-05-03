@@ -1023,7 +1023,7 @@ async function saveQuote() {
   const client = document.getElementById('client').value.trim();
   if (!client) { alert('업체명을 입력해 주세요.'); return; }
   if (!selectedItems.length) { alert('품목을 선택해 주세요.'); return; }
-  const total = selectedItems.reduce((s,i)=>s+i.price*i.qty*i.bottles,0);
+  const total = selectedItems.reduce((s,i)=>s + Math.ceil(i.price*i.bottles/10)*10*i.qty, 0);
   const { error } = await sb.from('quotes').insert({
     employee_name: currentUser.email,
     client_name: client,
